@@ -66,11 +66,11 @@ template <typename T> using remove_reference = std::remove_reference<T>;
 #define FIXED_ONE_BYTE_STRING(isolate, string)                                \
   (node::OneByteString((isolate), (string), sizeof(string) - 1))
 
-#define DISALLOW_COPY_AND_ASSIGN(TypeName)                                    \
-  void operator=(const TypeName&) = delete;                                   \
-  void operator=(TypeName&&) = delete;                                        \
-  TypeName(const TypeName&) = delete;                                         \
-  TypeName(TypeName&&) = delete
+// A macro to disallow the copy constructor and operator= functions
+// This should be used in the private: declarations for a class
+#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
+  TypeName(const TypeName&);               \
+  void operator=(const TypeName&)
 
 // Windows 8+ does not like abort() in Release mode
 #ifdef _WIN32
