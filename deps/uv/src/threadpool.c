@@ -47,7 +47,7 @@ static uv_mutex_t mutex;
 static unsigned int idle_threads;
 static unsigned int nthreads;
 static uv_thread_t* threads;
-static uv_thread_t default_threads[4];
+static uv_thread_t default_threads[MAX_THREADPOOL_SIZE];
 static QUEUE exit_message;
 static QUEUE wq;
 static volatile int initialized;
