@@ -51,6 +51,10 @@
 #include <openssl/rand.h>
 #include <openssl/pkcs12.h>
 
+#if defined(BORINGSSL)
+#include "ssl/internal.h"  // SSL3_STATE
+#endif
+
 #define EVP_F_EVP_DECRYPTFINAL 101
 
 #if !defined(OPENSSL_NO_TLSEXT) && defined(SSL_CTX_set_tlsext_status_cb)
