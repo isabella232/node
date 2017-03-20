@@ -20,6 +20,15 @@
     [ 'node_enable_d8=="true"', {
       'dependencies': [ 'deps/v8/src/d8.gyp:d8' ],
     }],
+    [ 'node_use_boringssl=="true"', {
+      'include_dirs': [
+        '../../../third_party/boringssl/src/include',
+        '../../../third_party/boringssl/src/',
+      ],
+      'defines': [
+         'BORINGSSL'
+      ],
+    }],
     [ 'node_use_bundled_v8=="true"', {
       'dependencies': [
         'deps/v8/src/v8.gyp:v8',
