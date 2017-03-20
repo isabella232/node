@@ -5872,6 +5872,7 @@ void InitCryptoOnce() {
   SSL_load_error_strings();
   OPENSSL_no_config();
 
+#ifndef BORINGSSL
   // --openssl-config=...
   if (!openssl_config.empty()) {
     OPENSSL_load_builtin_modules();
@@ -5891,6 +5892,7 @@ void InitCryptoOnce() {
       CHECK_NE(err, 0);
     }
   }
+#endif  // BORINGSSL
 
   SSL_library_init();
   OpenSSL_add_all_algorithms();

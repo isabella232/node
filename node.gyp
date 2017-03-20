@@ -17,6 +17,7 @@
     'node_shared_libuv%': 'false',
     'node_use_openssl%': 'true',
     'node_shared_openssl%': 'false',
+    'node_use_boringssl%': 'false',
     'node_v8_options%': '',
     'node_enable_v8_vtunejit%': 'false',
     'node_core_target_name%': 'node',
@@ -282,10 +283,13 @@
         [ 'node_enable_d8=="true"', {
           'dependencies': [ 'deps/v8/src/d8.gyp:d8' ],
         }],
-        [ 'node_use_chromium_v8=="true"', {
-          'dependencies': [
-            '../../../v8/src/v8.gyp:v8',
-            '../../../v8/src/v8.gyp:v8_libplatform',
+        [ 'node_use_boringssl=="true"', {
+          'include_dirs': [
+            '../../../third_party/boringssl/src/include',
+            '../../../third_party/boringssl/src/',
+          ],
+          'defines': [
+            'BORINGSSL'
           ],
         }],
         [ 'node_use_bundled_v8=="true"', {
