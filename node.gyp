@@ -17,6 +17,7 @@
     'node_shared_libuv%': 'false',
     'node_use_openssl%': 'true',
     'node_shared_openssl%': 'false',
+    'node_use_boringssl%': 'false',
     'node_v8_options%': '',
     'node_enable_v8_vtunejit%': 'false',
     'node_core_target_name%': 'node',
@@ -691,6 +692,15 @@
         [ 'node_use_v8_platform=="true"', {
           'dependencies': [
             'deps/v8/src/v8.gyp:v8_libplatform',
+          ],
+        }],
+        [ 'node_use_boringssl=="true"', {
+          'include_dirs': [
+            '../../../third_party/boringssl/src/include',
+            '../../../third_party/boringssl/src/',
+          ],
+          'defines': [
+            'BORINGSSL'
           ],
         }],
         [ 'node_use_dtrace=="true" and OS!="mac" and OS!="linux"', {
