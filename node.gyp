@@ -400,7 +400,7 @@
               'action_name': 'v8_inspector_compress_protocol_json',
               'process_outputs_as_sources': 1,
               'inputs': [
-                'deps/v8/src/inspector/js_protocol.json',
+                '../../../v8/src/inspector/js_protocol.json',
               ],
               'outputs': [
                 '<(SHARED_INTERMEDIATE_DIR)/v8_inspector_protocol_json.h',
