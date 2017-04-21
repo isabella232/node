@@ -349,18 +349,19 @@
           ],
           'sources': [
             'src/inspector_agent.cc',
+            'src/inspector_io.cc',
             'src/inspector_socket.cc',
             'src/inspector_socket_server.cc',
             'src/inspector_agent.h',
+            'src/inspector_io.h',
             'src/inspector_socket.h',
             'src/inspector_socket_server.h',
           ],
           'dependencies': [
-            'deps/v8_inspector/src/inspector/inspector.gyp:standalone_inspector',
             'v8_inspector_compress_protocol_json#host',
           ],
           'include_dirs': [
-            'deps/v8_inspector/include',
+            '../../../v8/src/inspector',
             '<(SHARED_INTERMEDIATE_DIR)/include', # for inspector
             '<(SHARED_INTERMEDIATE_DIR)',
           ],
@@ -709,7 +710,7 @@
               'action_name': 'v8_inspector_compress_protocol_json',
               'process_outputs_as_sources': 1,
               'inputs': [
-                'deps/v8_inspector/src/inspector/js_protocol.json',
+                '../../../v8/src/inspector/js_protocol.json',
               ],
               'outputs': [
                 '<(SHARED_INTERMEDIATE_DIR)/v8_inspector_protocol_json.h',

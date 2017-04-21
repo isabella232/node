@@ -38,7 +38,9 @@
 #include "req-wrap.h"
 #include "req-wrap-inl.h"
 #include "string_bytes.h"
+#if NODE_USE_V8_PLATFORM
 #include "tracing/agent.h"
+#endif
 #include "util.h"
 #include "uv.h"
 #if NODE_USE_V8_PLATFORM
@@ -202,7 +204,9 @@ static uv_async_t dispatch_debug_messages_async;
 
 static Mutex node_isolate_mutex;
 static v8::Isolate* node_isolate;
+#if NODE_USE_V8_PLATFORM
 static tracing::Agent* tracing_agent;
+#endif
 
 static node::DebugOptions debug_options;
 
@@ -3386,9 +3390,11 @@ void SetupProcessObject(Environment* env,
 
 void SignalExit(int signo) {
   uv_tty_reset_mode();
+#if NODE_USE_V8_PLATFORM
   if (trace_enabled) {
     tracing_agent->Stop();
   }
+#endif
 #ifdef __FreeBSD__
   // FreeBSD has a nasty bug, see RegisterSignalHandler for details
   struct sigaction sa;
@@ -4545,6 +4551,7 @@ int Start(int argc, char** argv) {
   V8::SetEntropySource(crypto::EntropySource);
 #endif  // HAVE_OPENSSL
 
+#if NODE_USE_V8_PLATFORM
   v8_platform.Initialize(v8_thread_pool_size);
   // Enable tracing when argv has --trace-events-enabled.
   if (trace_enabled) {
@@ -4553,13 +4560,16 @@ int Start(int argc, char** argv) {
     tracing_agent = new tracing::Agent();
     tracing_agent->Start(v8_platform.platform_, trace_enabled_categories);
   }
+#endif
   V8::Initialize();
   v8_initialized = true;
   const int exit_code =
       Start(uv_default_loop(), argc, argv, exec_argc, exec_argv);
+#if NODE_USE_V8_PLATFORM
   if (trace_enabled) {
     tracing_agent->Stop();
   }
+#endif
   v8_initialized = false;
   V8::Dispose();
 

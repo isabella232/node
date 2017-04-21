@@ -8,7 +8,9 @@
 #include "util-inl.h"
 #include "uv.h"
 #include "v8.h"
+#if NODE_USE_V8_PLATFORM
 #include "tracing/trace_event.h"
+#endif
 
 #include <stdint.h>
 #include <stdlib.h>
