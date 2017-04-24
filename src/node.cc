@@ -4,6 +4,7 @@
 #include "node_file.h"
 #include "node_http_parser.h"
 #include "node_javascript.h"
+#include "node_mutex.h"
 #include "node_version.h"
 #include "node_internals.h"
 #include "node_revert.h"
@@ -200,7 +201,6 @@ bool v8_initialized = false;
 // process-relative uptime base, initialized at start-up
 static double prog_start_time;
 static bool debugger_running;
-static uv_async_t dispatch_debug_messages_async;
 
 static Mutex node_isolate_mutex;
 static v8::Isolate* node_isolate;
@@ -248,13 +248,12 @@ static struct {
   bool StartInspector(Environment *env, const char* script_path,
                       const node::DebugOptions& options) {
     env->ThrowError("Node compiled with NODE_USE_V8_PLATFORM=0");
-    return false;  // make compiler happy
+    return true;
   }
 #endif  // !NODE_USE_V8_PLATFORM
 } v8_platform;
 
 #ifdef __POSIX__
-static uv_sem_t debug_semaphore;
 static const unsigned kMaxSignal = 32;
 #endif
 
@@ -2551,9 +2550,7 @@ void FatalException(Isolate* isolate,
 
   if (exit_code) {
 #if HAVE_INSPECTOR
-    if (debug_options.inspector_enabled()) {
-      env->inspector_agent()->FatalException(error, message);
-    }
+    env->inspector_agent()->FatalException(error, message);
 #endif
     exit(exit_code);
   }
@@ -3791,95 +3788,16 @@ static void ParseArgs(int* argc,
 }
 
 
-// Called from V8 Debug Agent TCP thread.
-static void DispatchMessagesDebugAgentCallback(Environment* env) {
-  // TODO(indutny): move async handle to environment
-  uv_async_send(&dispatch_debug_messages_async);
-}
-
-
 static void StartDebug(Environment* env, const char* path,
                        DebugOptions debug_options) {
   CHECK(!debugger_running);
 #if HAVE_INSPECTOR
-  if (debug_options.inspector_enabled())
-    debugger_running = v8_platform.StartInspector(env, path, debug_options);
+  debugger_running = v8_platform.StartInspector(env, path, debug_options);
 #endif  // HAVE_INSPECTOR
-  if (debug_options.debugger_enabled()) {
-    env->debugger_agent()->set_dispatch_handler(
-          DispatchMessagesDebugAgentCallback);
-    debugger_running = env->debugger_agent()->Start(debug_options);
-    if (debugger_running == false) {
-      fprintf(stderr, "Starting debugger on %s:%d failed\n",
-              debug_options.host_name().c_str(), debug_options.port());
-      fflush(stderr);
-    }
-  }
-}
-
-
-// Called from the main thread.
-static void EnableDebug(Environment* env) {
-  CHECK(debugger_running);
-
-  if (!debug_options.debugger_enabled()) {
-    return;
-  }
-
-  // Send message to enable debug in workers
-  HandleScope handle_scope(env->isolate());
-
-  Local<Object> message = Object::New(env->isolate());
-  message->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "cmd"),
-               FIXED_ONE_BYTE_STRING(env->isolate(), "NODE_DEBUG_ENABLED"));
-  Local<Value> argv[] = {
-    FIXED_ONE_BYTE_STRING(env->isolate(), "internalMessage"),
-    message
-  };
-  MakeCallback(env, env->process_object(), "emit", arraysize(argv), argv);
-
-  // Enabled debugger, possibly making it wait on a semaphore
-  env->debugger_agent()->Enable();
-}
-
-
-// Called from an arbitrary thread.
-static void TryStartDebugger() {
-  Mutex::ScopedLock scoped_lock(node_isolate_mutex);
-  if (auto isolate = node_isolate) {
-    v8::Debug::DebugBreak(isolate);
-    uv_async_send(&dispatch_debug_messages_async);
-  }
-}
-
-
-// Called from the main thread.
-static void DispatchDebugMessagesAsyncCallback(uv_async_t* handle) {
-  Mutex::ScopedLock scoped_lock(node_isolate_mutex);
-  if (auto isolate = node_isolate) {
-    if (debugger_running == false) {
-      fprintf(stderr, "Starting debugger agent.\n");
-
-      HandleScope scope(isolate);
-      Environment* env = Environment::GetCurrent(isolate);
-      Context::Scope context_scope(env->context());
-      debug_options.EnableDebugAgent(DebugAgentType::kDebugger);
-      StartDebug(env, nullptr, debug_options);
-      EnableDebug(env);
-    }
-
-    Isolate::Scope isolate_scope(isolate);
-    v8::Debug::ProcessDebugMessages(isolate);
-  }
 }
 
 
 #ifdef __POSIX__
-static void EnableDebugSignalHandler(int signo) {
-  uv_sem_post(&debug_semaphore);
-}
-
-
 void RegisterSignalHandler(int signal,
                            void (*handler)(int signal),
                            bool reset_handler) {
@@ -3913,109 +3831,13 @@ void DebugProcess(const FunctionCallbackInfo<Value>& args) {
     return env->ThrowErrnoException(errno, "kill");
   }
 }
-
-
-inline void* DebugSignalThreadMain(void* unused) {
-  for (;;) {
-    uv_sem_wait(&debug_semaphore);
-    TryStartDebugger();
-  }
-  return nullptr;
-}
-
-
-static int RegisterDebugSignalHandler() {
-  // Start a watchdog thread for calling v8::Debug::DebugBreak() because
-  // it's not safe to call directly from the signal handler, it can
-  // deadlock with the thread it interrupts.
-  CHECK_EQ(0, uv_sem_init(&debug_semaphore, 0));
-  pthread_attr_t attr;
-  CHECK_EQ(0, pthread_attr_init(&attr));
-  // Don't shrink the thread's stack on FreeBSD.  Said platform decided to
-  // follow the pthreads specification to the letter rather than in spirit:
-  // https://lists.freebsd.org/pipermail/freebsd-current/2014-March/048885.html
-#ifndef __FreeBSD__
-  CHECK_EQ(0, pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN));
-#endif  // __FreeBSD__
-  CHECK_EQ(0, pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED));
-  sigset_t sigmask;
-  sigfillset(&sigmask);
-  CHECK_EQ(0, pthread_sigmask(SIG_SETMASK, &sigmask, &sigmask));
-  pthread_t thread;
-  const int err =
-      pthread_create(&thread, &attr, DebugSignalThreadMain, nullptr);
-  CHECK_EQ(0, pthread_sigmask(SIG_SETMASK, &sigmask, nullptr));
-  CHECK_EQ(0, pthread_attr_destroy(&attr));
-  if (err != 0) {
-    fprintf(stderr, "node[%d]: pthread_create: %s\n", getpid(), strerror(err));
-    fflush(stderr);
-    // Leave SIGUSR1 blocked.  We don't install a signal handler,
-    // receiving the signal would terminate the process.
-    return -err;
-  }
-  RegisterSignalHandler(SIGUSR1, EnableDebugSignalHandler);
-  // Unblock SIGUSR1.  A pending SIGUSR1 signal will now be delivered.
-  sigemptyset(&sigmask);
-  sigaddset(&sigmask, SIGUSR1);
-  CHECK_EQ(0, pthread_sigmask(SIG_UNBLOCK, &sigmask, nullptr));
-  return 0;
-}
 #endif  // __POSIX__
 
 
 #ifdef _WIN32
-DWORD WINAPI EnableDebugThreadProc(void* arg) {
-  TryStartDebugger();
-  return 0;
-}
-
-
 static int GetDebugSignalHandlerMappingName(DWORD pid, wchar_t* buf,
     size_t buf_len) {
   return _snwprintf(buf, buf_len, L"node-debug-handler-%u", pid);
-}
-
-
-static int RegisterDebugSignalHandler() {
-  wchar_t mapping_name[32];
-  HANDLE mapping_handle;
-  DWORD pid;
-  LPTHREAD_START_ROUTINE* handler;
-
-  pid = GetCurrentProcessId();
-
-  if (GetDebugSignalHandlerMappingName(pid,
-                                       mapping_name,
-                                       arraysize(mapping_name)) < 0) {
-    return -1;
-  }
-
-  mapping_handle = CreateFileMappingW(INVALID_HANDLE_VALUE,
-                                      nullptr,
-                                      PAGE_READWRITE,
-                                      0,
-                                      sizeof *handler,
-                                      mapping_name);
-  if (mapping_handle == nullptr) {
-    return -1;
-  }
-
-  handler = reinterpret_cast<LPTHREAD_START_ROUTINE*>(
-      MapViewOfFile(mapping_handle,
-                    FILE_MAP_ALL_ACCESS,
-                    0,
-                    0,
-                    sizeof *handler));
-  if (handler == nullptr) {
-    CloseHandle(mapping_handle);
-    return -1;
-  }
-
-  *handler = EnableDebugThreadProc;
-
-  UnmapViewOfFile(static_cast<void*>(handler));
-
-  return 0;
 }
 
 
@@ -4116,15 +3938,9 @@ static void DebugPause(const FunctionCallbackInfo<Value>& args) {
 
 static void DebugEnd(const FunctionCallbackInfo<Value>& args) {
   if (debugger_running) {
+#if HAVE_INSPECTOR
     Environment* env = Environment::GetCurrent(args);
-#if HAVE_INSPECTOR
-    if (debug_options.inspector_enabled()) {
-      env->inspector_agent()->Stop();
-    } else {
-#endif
-      env->debugger_agent()->Stop();
-#if HAVE_INSPECTOR
-    }
+    env->inspector_agent()->Stop();
 #endif
     debugger_running = false;
   }
@@ -4221,13 +4037,6 @@ void Init(int* argc,
   uv_disable_stdio_inheritance();
   }  // g_upstream_node_mode
 
-  // init async debug messages dispatching
-  // Main thread uses uv_default_loop
-  CHECK_EQ(0, uv_async_init(uv_default_loop(),
-                            &dispatch_debug_messages_async,
-                            DispatchDebugMessagesAsyncCallback));
-  uv_unref(reinterpret_cast<uv_handle_t*>(&dispatch_debug_messages_async));
-
 #if defined(NODE_V8_OPTIONS)
   // Should come before the call to V8::SetFlagsFromCommandLine()
   // so the user can disable a flag --foo at run-time by passing
@@ -4296,12 +4105,6 @@ void Init(int* argc,
 
   if (v8_argc > 1) {
     exit(9);
-  }
-  }  // g_upstream_node_mode
-
-  if (g_upstream_node_mode) {  // No indent to minimize diff.
-  if (!debug_options.debugger_enabled() && !debug_options.inspector_enabled()) {
-    RegisterDebugSignalHandler();
   }
   }  // g_upstream_node_mode
 
@@ -4408,11 +4211,7 @@ inline int Start(Isolate* isolate, IsolateData* isolate_data,
   Environment env(isolate_data, context);
   env.Start(argc, argv, exec_argc, exec_argv, v8_is_profiling);
 
-  bool debug_enabled =
-      debug_options.debugger_enabled() || debug_options.inspector_enabled();
-
-  // Start debug agent when argv has --debug
-  if (debug_enabled) {
+  if (debug_options.inspector_enabled()) {
     const char* path = argc > 1 ? argv[1] : nullptr;
     StartDebug(&env, path, debug_options);
     if (!debugger_running)
@@ -4425,10 +4224,6 @@ inline int Start(Isolate* isolate, IsolateData* isolate_data,
   }
 
   env.set_trace_sync_io(trace_sync_io);
-
-  // Enable debugger
-  if (debug_enabled)
-    EnableDebug(&env);
 
   {
     SealHandleScope seal(isolate);
