@@ -18,11 +18,13 @@
 #include <string.h>
 #include <vector>
 
-
 namespace node {
 namespace inspector {
 namespace {
 using AsyncAndAgent = std::pair<uv_async_t, Agent*>;
+using icu::CheckedArrayByteSink;
+using icu::StringPiece;
+using icu::UnicodeString;
 using v8_inspector::StringBuffer;
 using v8_inspector::StringView;
 

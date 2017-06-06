@@ -84,6 +84,7 @@ extern "C" const char U_DATA_API SMALL_ICUDATA_ENTRY_POINT[];
 
 namespace node {
 
+using icu::TimeZone;
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::Isolate;
