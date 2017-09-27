@@ -228,7 +228,7 @@ class SSLWrap {
   // some for buffers.
   // NOTE: Actually it is much more than this
   static const int64_t kExternalSize =
-      sizeof(SSL) + sizeof(SSL3_STATE) + 42 * 1024;
+      sizeof(SSL) + sizeof(bssl::SSL3_STATE) + 42 * 1024;
 
   static void InitNPN(SecureContext* sc);
   static void AddMethods(Environment* env, v8::Local<v8::FunctionTemplate> t);
