@@ -35,6 +35,7 @@ class InspectorSessionDelegate {
  public:
   virtual bool WaitForFrontendMessage() = 0;
   virtual void OnMessage(const v8_inspector::StringView& message) = 0;
+  virtual ~InspectorSessionDelegate() = default;
 };
 
 class Agent {
