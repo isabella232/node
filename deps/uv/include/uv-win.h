@@ -23,10 +23,9 @@
 # define _WIN32_WINNT   0x0502
 #endif
 
-#if !defined(_SSIZE_T_) && !defined(_SSIZE_T_DEFINED)
-typedef intptr_t ssize_t;
-# define _SSIZE_T_
-# define _SSIZE_T_DEFINED
+#if defined(_MSC_VER)
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #endif
 
 #include <winsock2.h>

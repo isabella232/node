@@ -164,17 +164,10 @@ NODE_EXTERN v8::Local<v8::Value> MakeCallback(
 #define NODE_STRINGIFY_HELPER(n) #n
 #endif
 
-#ifdef _WIN32
-// TODO(tjfontaine) consider changing the usage of ssize_t to ptrdiff_t
-#if !defined(_SSIZE_T_) && !defined(_SSIZE_T_DEFINED)
-typedef intptr_t ssize_t;
-# define _SSIZE_T_
-# define _SSIZE_T_DEFINED
+#if defined(_MSC_VER)
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #endif
-#else  // !_WIN32
-# include <sys/types.h>  // size_t, ssize_t
-#endif  // _WIN32
-
 
 namespace node {
 
