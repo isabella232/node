@@ -21,9 +21,9 @@
 namespace node {
 namespace inspector {
 namespace {
-using icu_59::UnicodeString;
-using icu_59::CheckedArrayByteSink;
-using icu_59::StringPiece;
+using icu::UnicodeString;
+using icu::CheckedArrayByteSink;
+using icu::StringPiece;
 using v8_inspector::StringBuffer;
 using v8_inspector::StringView;
 
