@@ -205,7 +205,7 @@
           'cflags': [
             '-fvisibility=hidden',
             '-g',
-            '--std=gnu89',
+            '--std=c11',
             '-pedantic',
             '-Wall',
             '-Wextra',
