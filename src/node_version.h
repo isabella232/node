@@ -52,6 +52,6 @@
  * an API is broken in the C++ side, including in v8 or
  * other dependencies.
  */
-#define NODE_MODULE_VERSION 55 /* v8 5.8 */
+#define NODE_MODULE_VERSION 59 /* v9.0.0 */
 
 #endif  // SRC_NODE_VERSION_H_
