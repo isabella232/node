@@ -97,8 +97,8 @@ template <typename T> using remove_reference = std::remove_reference<T>;
 #define CHECK(expr)                                                           \
   do {                                                                        \
     if (UNLIKELY(!(expr))) {                                                  \
-      static const char* const args[] = { __FILE__, STRINGIFY(__LINE__),      \
-                                          #expr, PRETTY_FUNCTION_NAME };      \
+      const char* const args[] = { __FILE__, STRINGIFY(__LINE__),             \
+                                   #expr, PRETTY_FUNCTION_NAME };             \
       node::Assert(&args);                                                    \
     }                                                                         \
   } while (0)
