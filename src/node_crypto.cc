@@ -1877,13 +1877,13 @@ void SSLWrap<Base>::GetTLSTicket(const FunctionCallbackInfo<Value>& args) {
   Environment* env = w->ssl_env();
 
   SSL_SESSION* sess = SSL_get_session(w->ssl_);
-  if (sess == nullptr || sess->tlsext_tick == nullptr)
+  if (sess == nullptr || sess->ticket.empty())
     return;
 
   Local<Object> buff = Buffer::Copy(
       env,
-      reinterpret_cast<char*>(sess->tlsext_tick),
-      sess->tlsext_ticklen).ToLocalChecked();
+      reinterpret_cast<char*>(sess->ticket.data()),
+      sess->ticket.size()).ToLocalChecked();
 
   args.GetReturnValue().Set(buff);
 }
